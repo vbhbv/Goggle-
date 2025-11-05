@@ -1,11 +1,13 @@
 import logging
 import os
 import re
-import requests 
+import requests # ⬅️ مطلوب لحل ModuleNotFoundError
 from telegram import Update
-from telegram.ext import (
-    Application, CommandHandler, MessageHandler, filters, ContextTypes # ⬅️ يجب أن يكون هذا هو الاستيراد الوحيد لـ telegram.ext
-)
+# 🛑🛑 الاستيراد الدقيق لمنع استدعاء Updater القديم 🛑🛑
+from telegram.ext import CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.ext.application import Application
+# 🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑
+
 from yt_dlp import YoutubeDL
 from yt_dlp.utils import DownloadError, ExtractorError
 import asyncio
@@ -26,17 +28,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# مسارات التخزين والذاكرة المؤقتة
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 FILE_ID_CACHE = {} 
 MAX_TELEGRAM_SIZE_MB = 1950 
 
-# مُنفّذ المهام في الخلفية
 executor = ThreadPoolExecutor(max_workers=4) 
 
 # -----------------------------------------------------
-# 📚 الدوال المساعدة والمعالجة (Handlers)
+# 📚 الدوال المساعدة والمعالجة (Handlers) - تم وضعها قبل main لحل NameError
 # -----------------------------------------------------
 
 # 🚀 معالج الأمر /start
@@ -47,7 +47,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "فقط أرسل لي **رابط** فيديو فيسبوك وسأتولى الأمر بسرعة فائقة!"
     )
 
-# ⚙️ وظيفة التحديث الذاتي لـ yt-dlp (لا يتم استدعاؤها في main الآن)
+# ⚙️ وظيفة التحديث الذاتي لـ yt-dlp (لا يتم استدعاؤها في main الآن لضمان الاستقرار)
 def self_update_ytdlp():
     """تجبر yt-dlp على تحديث نفسه عند بدء التشغيل."""
     try:
@@ -57,10 +57,8 @@ def self_update_ytdlp():
     except Exception as e:
         logger.error(f"yt-dlp self-update failed: {e}")
 
-# ... (بقية دوال progress_hook_factory و retry_upload و handle_facebook_link تبقى كما هي) ...
-
+# 📊 وظيفة لعرض شريط التقدم 
 def progress_hook_factory(update_func, total_bytes):
-    # ... (الكود يبقى كما هو) ...
     """Factory لإنشاء خطاف تقدم ذكي لتحديث رسالة تيليجرام."""
     last_percent = -1
     last_update_time = 0
@@ -94,6 +92,7 @@ def progress_hook_factory(update_func, total_bytes):
 
     return progress_hook
 
+# 🔄 دالة إعادة المحاولة للرفع
 async def retry_upload(func: Callable, max_retries: int = 3, delay: int = 5, *args, **kwargs) -> Any:
     """إعادة محاولة تنفيذ دالة الرفع في حالة فشل الاتصال."""
     last_exception = None
@@ -109,6 +108,7 @@ async def retry_upload(func: Callable, max_retries: int = 3, delay: int = 5, *ar
                 raise last_exception
     return None
 
+# ⚡️ الوظيفة الأساسية: معالج رابط الفيسبوك
 async def handle_facebook_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """المُعالج الرئيسي: فحص، تنزيل، وإرسال الفيديو."""
     chat_id = update.effective_chat.id
@@ -133,7 +133,6 @@ async def handle_facebook_link(update: Update, context: ContextTypes.DEFAULT_TYP
             )
             return
         except Exception:
-            # حذف الـ Cache إذا فشل إرسال الـ file_id
             FILE_ID_CACHE.pop(url, None)
             logger.warning(f"Failed to send cached video for {url}. Cache entry deleted.")
 
@@ -159,7 +158,7 @@ async def handle_facebook_link(update: Update, context: ContextTypes.DEFAULT_TYP
     selected_format_string = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best' 
     final_error = None
     
-    # الفحص المخصص وحجم الملف (Pre-Flight Check)
+    # 🛡️ 0. الفحص المخصص وحجم الملف (Pre-Flight Check)
     try:
         await update_progress_message(text="🔍 جاري فحص حالة الفيديو واستخلاص البيانات الوصفية (Pre-Flight Check)...")
         with YoutubeDL({'quiet': True, 'noprogress': True}) as ydl_meta:
@@ -201,7 +200,7 @@ async def handle_facebook_link(update: Update, context: ContextTypes.DEFAULT_TYP
         await update_progress_message(text="⚠️ فشل الفحص، جاري البدء بالتنزيل بشكل مباشر...")
 
 
-    # إعدادات yt-dlp الأساسية
+    # 🛠️ إعدادات yt-dlp الأساسية
     base_ydl_opts = {
         'format': selected_format_string, 
         'outtmpl': filepath,
@@ -212,7 +211,7 @@ async def handle_facebook_link(update: Update, context: ContextTypes.DEFAULT_TYP
         'progress_hooks': [progress_hook_factory(update_progress_message, total_bytes)],
     }
 
-    # استراتيجية المحاولة الثلاثية
+    # 🚀 استراتيجية المحاولة الثلاثية
     def attempt_download(url, opts):
         """وظيفة يتم تشغيلها في ThreadPoolExecutor."""
         with YoutubeDL(opts) as ydl:
@@ -254,7 +253,7 @@ async def handle_facebook_link(update: Update, context: ContextTypes.DEFAULT_TYP
             logger.error(f"Attempt failed with general error: {final_error}")
 
 
-    # خطوة الإرسال والتنظيف
+    # 📤 خطوة الإرسال والتنظيف
     if download_successful and os.path.exists(filepath):
         upload_message = await context.bot.send_message(
             chat_id=chat_id,
@@ -288,7 +287,6 @@ async def handle_facebook_link(update: Update, context: ContextTypes.DEFAULT_TYP
                 chat_id=chat_id,
                 text="⚠️ فشل الرفع بعد محاولات عديدة. (قد يكون حجم الملف تجاوز الحد الأقصى)."
             )
-            # التنظيف الصارم عند فشل الرفع
             if os.path.exists(filepath):
                 os.remove(filepath)
                 logger.info(f"Hard cleanup: Deleted file after failed upload: {filepath}")
@@ -306,7 +304,7 @@ async def handle_facebook_link(update: Update, context: ContextTypes.DEFAULT_TYP
             text=final_error_msg
         )
 
-    # التنظيف النهائي
+    # 🗑️ التنظيف النهائي
     if os.path.exists(filepath):
         os.remove(filepath)
         logger.info(f"Cleaned up file: {filepath}")
@@ -331,7 +329,7 @@ def main() -> None:
 
     logger.info("Bot is running...")
     
-    # تم تعطيل سطر التحديث الذاتي لضمان الاستقرار:
+    # 🛑 تم تعطيل سطر التحديث الذاتي لضمان الاستقرار:
     # application.job_queue.run_once(lambda context: self_update_ytdlp(), 1) 
     
     # تشغيل البوت

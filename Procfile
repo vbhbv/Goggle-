@@ -1,1 +1,1 @@
-web: python bot.py
+web: pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt && python bot.py

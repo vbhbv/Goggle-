@@ -1,13 +1,12 @@
 import logging
 import os
 import re
-import requests # ⬅️ مطلوب لحل ModuleNotFoundError
+import requests 
 from telegram import Update
-# 🛑🛑 الاستيراد الدقيق لمنع استدعاء Updater القديم 🛑🛑
-from telegram.ext import CommandHandler, MessageHandler, filters, ContextTypes
-from telegram.ext.application import Application
-# 🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑🛑
-
+# 🛑 الاستيراد القياسي (V20+) - يجب أن ينجح بعد تنظيف البيئة
+from telegram.ext import (
+    Application, CommandHandler, MessageHandler, filters, ContextTypes
+) 
 from yt_dlp import YoutubeDL
 from yt_dlp.utils import DownloadError, ExtractorError
 import asyncio
@@ -36,7 +35,7 @@ MAX_TELEGRAM_SIZE_MB = 1950
 executor = ThreadPoolExecutor(max_workers=4) 
 
 # -----------------------------------------------------
-# 📚 الدوال المساعدة والمعالجة (Handlers) - تم وضعها قبل main لحل NameError
+# 📚 الدوال المساعدة والمعالجة (Handlers)
 # -----------------------------------------------------
 
 # 🚀 معالج الأمر /start
@@ -47,7 +46,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "فقط أرسل لي **رابط** فيديو فيسبوك وسأتولى الأمر بسرعة فائقة!"
     )
 
-# ⚙️ وظيفة التحديث الذاتي لـ yt-dlp (لا يتم استدعاؤها في main الآن لضمان الاستقرار)
+# ⚙️ وظيفة التحديث الذاتي لـ yt-dlp 
 def self_update_ytdlp():
     """تجبر yt-dlp على تحديث نفسه عند بدء التشغيل."""
     try:
@@ -320,7 +319,7 @@ def main() -> None:
         logger.error("TELEGRAM_BOT_TOKEN environment variable is not set!")
         return
         
-    # البناء الصحيح لـ PTB V20+ (يحل مشكلة Updater و JobQueue)
+    # البناء الصحيح لـ PTB V20+
     application = Application.builder().token(TOKEN).concurrent_updates(True).build()
 
     # إضافة المعالجات (Handlers)
